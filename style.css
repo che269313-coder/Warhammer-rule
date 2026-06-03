@@ -880,6 +880,38 @@ input, textarea { font-family: inherit; }
   border-color: var(--accent-gold);
 }
 
+/* ============ SEARCH VIEW ============ */
+.search-input {
+  width: 100%;
+  min-height: 48px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text-primary);
+  font-size: 15px;
+  padding: 0 16px;
+  margin-bottom: 12px;
+}
+
+.search-input:focus {
+  outline: none;
+  border-color: var(--accent-gold);
+  box-shadow: 0 0 0 3px rgba(201,162,39,0.12);
+}
+
+.search-summary {
+  font-size: 12px;
+  color: var(--text-secondary);
+  padding: 4px 0 12px;
+}
+
+.search-result-header {
+  font-size: 13px;
+  color: var(--accent-gold);
+  padding: 0 0 12px;
+  font-weight: 600;
+}
+
 .roster-toolbar {
   display: flex;
   gap: 10px;

@@ -113,7 +113,7 @@ const DB = (() => {
 // ================================================================
 
 const state = {
-  view:          'home',  // 'home' | 'phase' | 'manage' | 'roster'
+  view:          'home',  // 'home' | 'phase' | 'manage' | 'roster' | 'search'
   prevView:      'home',
   packs:         [],
   activePackId:  null,
@@ -126,6 +126,7 @@ const state = {
   selectedUnitsByPack: {},
   importTab:     'file',     // 'file' | 'paste'
   rosterQuery:   '',
+  searchQuery:   '',
 };
 
 function persistState() {
@@ -419,6 +420,9 @@ function navigate(view, opts = {}) {
   if (view === 'roster') {
     state.rosterQuery = '';
   }
+  if (view === 'search') {
+    state.searchQuery = '';
+  }
   renderApp();
 }
 
@@ -432,6 +436,7 @@ function renderApp() {
     case 'phase':  app.innerHTML = renderPhaseView();  break;
     case 'manage': app.innerHTML = renderManageView(); break;
     case 'roster': app.innerHTML = renderRosterView(); break;
+    case 'search': app.innerHTML = renderSearchView(); break;
     default:       app.innerHTML = renderHomeView();
   }
   bindAppEvents();
@@ -467,6 +472,63 @@ function renderHomeView() {
       </div>`
     : '';
 
+  const query = state.searchQuery.trim().toLowerCase();
+
+  // ---- Search results (shown when query is non-empty) ----
+  let searchResultsHtml = '';
+  if (query && pack) {
+    const allAbs = collectAllAbilities(pack);
+    const seen = new Set();
+    const uniqueAbs = allAbs.filter(ab => {
+      if (seen.has(ab.id)) return false;
+      seen.add(ab.id);
+      return true;
+    });
+    const filtered = uniqueAbs.filter(ab => {
+      const name = String(ab.name || '').toLowerCase();
+      const summary = String(ab.summary || '').toLowerCase();
+      const timing = String(ab.timing || '').toLowerCase();
+      const source = String(ab.source || '').toLowerCase();
+      const unit = String(ab._unit || '').toLowerCase();
+      const effect = String(ab.effect || '').toLowerCase();
+      const target = String(ab.target || '').toLowerCase();
+      return name.includes(query)
+        || summary.includes(query)
+        || timing.includes(query)
+        || source.includes(query)
+        || unit.includes(query)
+        || effect.includes(query)
+        || target.includes(query);
+    });
+    const catOrder = { stratagem: 0, detachment: 1, enhancement: 2, unit: 3 };
+    filtered.sort((a, b) => {
+      const aUsed = state.usedAbilities.has(a.id) ? 1 : 0;
+      const bUsed = state.usedAbilities.has(b.id) ? 1 : 0;
+      if (aUsed !== bUsed) return aUsed - bUsed;
+      const aCat = catOrder[a._category] ?? 4;
+      const bCat = catOrder[b._category] ?? 4;
+      if (aCat !== bCat) return aCat - bCat;
+      return String(a.name || '').localeCompare(String(b.name || ''));
+    });
+    const searchColor = '#c9a227';
+    searchResultsHtml = filtered.length === 0
+      ? `<div class="empty-state" style="padding:24px 0">
+          <div class="empty-icon">🔎</div>
+          <div class="empty-title">没有匹配的结果</div>
+          <div class="empty-desc">试试其他关键词</div>
+        </div>`
+      : `<div class="search-result-header">搜索「${esc(state.searchQuery)}」&nbsp;·&nbsp;${filtered.length} 条结果</div>
+         <div class="ability-list">${filtered.map(ab => renderAbilityCard(ab, searchColor)).join('')}</div>
+         <button class="btn btn-ghost btn-full" id="btn-clear-search" style="margin-top:12px">✕ 清除搜索</button>`;
+  } else if (query && !pack) {
+    searchResultsHtml = `<div class="empty-state" style="padding:24px 0">
+        <div class="empty-icon">📚</div>
+        <div class="empty-title">尚未加载规则包</div>
+        <div class="empty-desc">请先在"规则包"中激活一个规则包后再搜索</div>
+      </div>`;
+  }
+
+  // ---- Phase grid (shown when no search query) ----
   const phaseButtons = PHASES.map(p => {
     const all       = pack ? collectPhaseAbilities(pack, p.id) : [];
     const usedCount = all.filter(a => state.usedAbilities.has(a.id)).length;
@@ -483,6 +545,18 @@ function renderHomeView() {
         </div>
       </button>`;
   }).join('');
+
+  const bodyContent = query
+    ? searchResultsHtml
+    : `<div class="round-bar">
+        <span class="round-label">⚔️ 当前回合</span>
+        <div class="round-controls">
+          <button class="round-adj-btn" id="round-dec">−</button>
+          <span class="round-number" id="round-display">${state.round}</span>
+          <button class="round-adj-btn" id="round-inc">+</button>
+        </div>
+      </div>
+      <div class="phase-grid">${phaseButtons}</div>`;
 
   return `
     <div class="app-header">
@@ -501,16 +575,11 @@ function renderHomeView() {
       ${packCard}
       ${rosterCard}
 
-      <div class="round-bar">
-        <span class="round-label">⚔️ 当前回合</span>
-        <div class="round-controls">
-          <button class="round-adj-btn" id="round-dec">−</button>
-          <span class="round-number" id="round-display">${state.round}</span>
-          <button class="round-adj-btn" id="round-inc">+</button>
-        </div>
-      </div>
+      <input class="search-input" id="home-search" type="search"
+        placeholder="${pack ? '搜索能力名、单位名、关键词...' : '请先激活规则包后再搜索'}"
+        value="${esc(state.searchQuery)}">
 
-      <div class="phase-grid">${phaseButtons}</div>
+      ${bodyContent}
     </div>
 
     <div class="bottom-bar">
@@ -721,6 +790,168 @@ function renderPhaseView() {
     </div>`;
 }
 
+// ─────────────────────────────────────────────────────────────────
+// SEARCH VIEW
+// ─────────────────────────────────────────────────────────────────
+
+/**
+ * Collect all abilities from a pack across all phases and categories.
+ * Returns flat list with _category, _unit, _detachment, _phase, _turnScope.
+ */
+function collectAllAbilities(pack) {
+  if (!pack) return [];
+  const out = [];
+  // Search across ALL units regardless of roster selection
+  const factionLabel = getUnitGroupLabel(pack);
+
+  // 1. Unit abilities — all units, not just roster-selected
+  for (const unit of (pack.units || [])) {
+    for (const ab of (unit.abilities || [])) {
+      if (!ab.phases) continue;
+      out.push({
+        ...ab,
+        _unit: unit.name,
+        _category: 'unit',
+        _detachment: factionLabel,
+        _turnScope: ab.turn_scope || inferTurnScope(ab),
+      });
+    }
+  }
+
+  // 2. Detachment rules
+  for (const rule of (pack.detachment_rules || [])) {
+    if (!rule.phases) continue;
+    const detachment = parseDetachmentFromSource(rule.source) || parseDetachmentFromTiming(rule.timing);
+    out.push({
+      ...rule,
+      _category: 'detachment',
+      _detachment: detachment || '编队规则',
+      _turnScope: rule.turn_scope || inferTurnScope(rule),
+      type: rule.type || 'detachment',
+    });
+  }
+
+  // 3. Stratagems
+  for (const strat of (pack.stratagems || [])) {
+    if (!strat.phases) continue;
+    const detachment = parseDetachmentFromSource(strat.source) || parseDetachmentFromTiming(strat.timing);
+    out.push({
+      ...strat,
+      _category: 'stratagem',
+      _detachment: detachment || '战略',
+      _turnScope: strat.turn_scope || inferTurnScope(strat),
+      type: strat.type || 'stratagem',
+    });
+  }
+
+  // 4. Enhancements
+  for (const enh of (pack.enhancements || [])) {
+    if (!enh.phases) continue;
+    out.push({
+      ...enh,
+      _category: 'enhancement',
+      _detachment: '强化',
+      _turnScope: enh.turn_scope || inferTurnScope(enh),
+      type: enh.type || 'enhancement',
+    });
+  }
+
+  return out;
+}
+
+function renderSearchView() {
+  const pack = getActivePack();
+  if (!pack) {
+    return `
+      <div class="app-header">
+        <div class="header-left">
+          <button class="back-btn" id="btn-back">←</button>
+          <div class="header-titles">
+            <div class="header-title">搜索规则</div>
+            <div class="header-subtitle">Rule Search</div>
+          </div>
+        </div>
+      </div>
+      <div class="main-content">
+        <div class="empty-state">
+          <div class="empty-icon">📚</div>
+          <div class="empty-title">尚未加载规则包</div>
+          <div class="empty-desc">请先在"规则包"中导入并激活一个规则包</div>
+        </div>
+      </div>`;
+  }
+
+  const query = state.searchQuery.trim().toLowerCase();
+  const allAbs = collectAllAbilities(pack);
+
+  // Deduplicate by id
+  const seen = new Set();
+  const uniqueAbs = allAbs.filter(ab => {
+    if (seen.has(ab.id)) return false;
+    seen.add(ab.id);
+    return true;
+  });
+
+  // Search matching
+  const filtered = query ? uniqueAbs.filter(ab => {
+    const name = String(ab.name || '').toLowerCase();
+    const summary = String(ab.summary || '').toLowerCase();
+    const timing = String(ab.timing || '').toLowerCase();
+    const source = String(ab.source || '').toLowerCase();
+    const unit = String(ab._unit || '').toLowerCase();
+    const effect = String(ab.effect || '').toLowerCase();
+    const target = String(ab.target || '').toLowerCase();
+    return name.includes(query)
+      || summary.includes(query)
+      || timing.includes(query)
+      || source.includes(query)
+      || unit.includes(query)
+      || effect.includes(query)
+      || target.includes(query);
+  }) : uniqueAbs;
+
+  // Sort: used first, then by category priority
+  const catOrder = { stratagem: 0, detachment: 1, enhancement: 2, unit: 3 };
+  const searchPhaseColor = '#c9a227'; // gold accent for search
+
+  filtered.sort((a, b) => {
+    const aUsed = state.usedAbilities.has(a.id) ? 1 : 0;
+    const bUsed = state.usedAbilities.has(b.id) ? 1 : 0;
+    if (aUsed !== bUsed) return aUsed - bUsed;
+    const aCat = catOrder[a._category] ?? 4;
+    const bCat = catOrder[b._category] ?? 4;
+    if (aCat !== bCat) return aCat - bCat;
+    return String(a.name || '').localeCompare(String(b.name || ''));
+  });
+
+  const resultCount = query ? `找到 ${filtered.length} 条` : `共 ${filtered.length} 条`;
+
+  const cards = filtered.length === 0
+    ? `<div class="empty-state">
+        <div class="empty-icon">🔎</div>
+        <div class="empty-title">${query ? '没有匹配的结果' : '输入关键词开始搜索'}</div>
+        <div class="empty-desc">${query ? '试试其他关键词，如能力名、单位名、关键词等' : '搜索单位能力、战略点、编队规则和强化'}</div>
+      </div>`
+    : filtered.map(ab => renderAbilityCard(ab, searchPhaseColor)).join('');
+
+  return `
+    <div class="app-header">
+      <div class="header-left">
+        <button class="back-btn" id="btn-back">←</button>
+        <div class="header-titles">
+          <div class="header-title">🔍 搜索规则</div>
+          <div class="header-subtitle">${resultCount}</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="main-content">
+      <input class="search-input" id="search-input" type="search" placeholder="搜索能力名、单位名、关键词..." value="${esc(state.searchQuery)}" autofocus>
+      ${query ? `<div class="search-summary">搜索「${esc(state.searchQuery)}」&nbsp;·&nbsp;${resultCount}</div>` : ''}
+      <div class="ability-list">${cards}</div>
+    </div>`;
+}
+
 function getAbilitySourceLabel(ab) {
   if (!ab) return '';
   if (ab._category === 'unit') return ab._unit || ab.source || '';
@@ -732,7 +963,17 @@ function getAbilitySourceLabel(ab) {
 function renderAbilityCard(ab, phaseColor) {
   const isUsed   = state.usedAbilities.has(ab.id);
   const typeMeta = ABILITY_TYPE_META[ab.type] || ABILITY_TYPE_META.active;
-  const detailText = String(ab.summary || '').trim();
+
+  // Build detail text from whichever field is available.
+  // Unit abilities / detachment rules / enhancements / wargear → summary
+  // Stratagems → effect (+ target)
+  let detailText = String(ab.summary || '').trim();
+  if (!detailText) {
+    const parts = [];
+    if (ab.target) parts.push(`🎯 目标：${ab.target}`);
+    if (ab.effect) parts.push(`📋 效果：${ab.effect}`);
+    detailText = parts.join('\n');
+  }
   const sourceLabel = getAbilitySourceLabel(ab);
 
   const accentColor =
@@ -949,14 +1190,42 @@ function bindAppEvents() {
   app.addEventListener('click', handleAppClick);
   app.addEventListener('input', handleAppInput);
   app.addEventListener('change', handleAppChange);
+  app.addEventListener('compositionstart', handleCompositionStart);
+  app.addEventListener('compositionend', handleCompositionEnd);
   app.dataset.eventsBound = 'true';
 }
+
+// ── IME composition helpers ──
+
+let _isComposing = false;
+let _searchTimer = null;
+
+function handleCompositionStart() { _isComposing = true; }
+
+function handleCompositionEnd(e) {
+  _isComposing = false;
+  const target = e.target;
+  if (target && (target.id === 'home-search' || target.id === 'search-input')) {
+    state.searchQuery = target.value || '';
+    clearTimeout(_searchTimer);
+    _searchTimer = setTimeout(() => renderApp(), 250);
+  }
+}
+
+// ── Input handling ──
 
 function handleAppInput(e) {
   const target = e.target;
   if (target.id === 'roster-search') {
     state.rosterQuery = target.value || '';
     renderApp();
+    return;
+  }
+  if (target.id === 'search-input' || target.id === 'home-search') {
+    if (_isComposing) return; // skip during IME composition
+    state.searchQuery = target.value || '';
+    clearTimeout(_searchTimer);
+    _searchTimer = setTimeout(() => renderApp(), 250);
   }
 }
 
@@ -972,9 +1241,22 @@ function handleAppChange(e) {
 function handleAppClick(e) {
   const t = e.target;
 
+  // Guard: text nodes and SVG elements may lack closest()
+  if (!t || typeof t.closest !== 'function') return;
+
+  // Never intercept clicks on <summary> — let native <details> toggle work
+  if (t.tagName === 'SUMMARY' || t.closest('summary')) return;
+
   // Back buttons
   if (t.closest('#btn-back')) {
     navigate(state.prevView === 'phase' ? 'home' : (state.prevView || 'home'));
+    return;
+  }
+
+  // Clear search
+  if (t.closest('#btn-clear-search')) {
+    state.searchQuery = '';
+    renderApp();
     return;
   }
 
