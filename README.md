@@ -34,7 +34,7 @@
 3. 需要离线使用（场地信号不稳定）的玩家。
 
 ## 快速开始
-在线使用：目前测试版托管于[github.io](https://zh4iyujia.github.io/BecomeChampion/),可以直接进行访问与使用
+在线使用：目前测试版托管于[github.io](https://che269313-coder.github.io/Warhammer-rule/),可以直接进行访问与使用
 
 1. 克隆或下载本仓库。
 2. 打开 [index.html](index.html) 即可使用。
