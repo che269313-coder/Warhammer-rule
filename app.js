@@ -8,7 +8,7 @@
 // CONSTANTS
 // ================================================================
 
-const APP_VERSION = '2.4.4';
+const APP_VERSION = '2.5.0';
 const DB_NAME     = 'BecomeChampionDB';
 const DB_VER      = 1;
 const STORE_PACKS = 'rulesPacks';
