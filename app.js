@@ -484,43 +484,50 @@ function renderHomeView() {
       seen.add(ab.id);
       return true;
     });
-    const filtered = uniqueAbs.filter(ab => {
+    const filtered = uniqueAbs.map(ab => {
       const name = String(ab.name || '').toLowerCase();
       const summary = String(ab.summary || '').toLowerCase();
       const timing = String(ab.timing || '').toLowerCase();
       const source = String(ab.source || '').toLowerCase();
-      const unit = String(ab._unit || '').toLowerCase();
+      const unitName = String(ab._unit || '').toLowerCase();
       const effect = String(ab.effect || '').toLowerCase();
       const target = String(ab.target || '').toLowerCase();
       const keywords = String(ab._keywords || '').toLowerCase();
-      return name.includes(query)
-        || summary.includes(query)
-        || timing.includes(query)
-        || source.includes(query)
-        || unit.includes(query)
-        || effect.includes(query)
-        || target.includes(query)
-        || keywords.includes(query);
-    });
+
+      let score = 0;
+      if (name.includes(query))     score = Math.max(score, 10);
+      if (effect.includes(query))   score = Math.max(score, 9);
+      if (summary.includes(query))  score = Math.max(score, 8);
+      if (timing.includes(query))   score = Math.max(score, 5);
+      if (target.includes(query))   score = Math.max(score, 4);
+      if (unitName.includes(query)) score = Math.max(score, 3);
+      if (source.includes(query))   score = Math.max(score, 2);
+      if (keywords.includes(query)) score = Math.max(score, 1);
+      return { ab, score };
+    }).filter(item => item.score > 0);
+
     const catOrder = { stratagem: 0, detachment: 1, enhancement: 2, unit: 3 };
     filtered.sort((a, b) => {
-      const aUsed = state.usedAbilities.has(a.id) ? 1 : 0;
-      const bUsed = state.usedAbilities.has(b.id) ? 1 : 0;
+      const aUsed = state.usedAbilities.has(a.ab.id) ? 1 : 0;
+      const bUsed = state.usedAbilities.has(b.ab.id) ? 1 : 0;
       if (aUsed !== bUsed) return aUsed - bUsed;
-      const aCat = catOrder[a._category] ?? 4;
-      const bCat = catOrder[b._category] ?? 4;
+      if (a.score !== b.score) return b.score - a.score; // higher score first
+      const aCat = catOrder[a.ab._category] ?? 4;
+      const bCat = catOrder[b.ab._category] ?? 4;
       if (aCat !== bCat) return aCat - bCat;
-      return String(a.name || '').localeCompare(String(b.name || ''));
+      return String(a.ab.name || '').localeCompare(String(b.ab.name || ''));
     });
+
+    const filteredAbs = filtered.map(item => item.ab);
     const searchColor = '#c9a227';
-    searchResultsHtml = filtered.length === 0
+    searchResultsHtml = filteredAbs.length === 0
       ? `<div class="empty-state" style="padding:24px 0">
           <div class="empty-icon">🔎</div>
           <div class="empty-title">没有匹配的结果</div>
           <div class="empty-desc">试试其他关键词</div>
         </div>`
-      : `<div class="search-result-header">搜索「${esc(state.searchQuery)}」&nbsp;·&nbsp;${filtered.length} 条结果</div>
-         <div class="ability-list">${filtered.map(ab => renderAbilityCard(ab, searchColor)).join('')}</div>
+      : `<div class="search-result-header">搜索「${esc(state.searchQuery)}」&nbsp;·&nbsp;${filteredAbs.length} 条结果</div>
+         <div class="ability-list">${filteredAbs.map(ab => renderAbilityCard(ab, searchColor)).join('')}</div>
          <button class="btn btn-ghost btn-full" id="btn-clear-search" style="margin-top:12px">✕ 清除搜索</button>`;
   } else if (query && !pack) {
     searchResultsHtml = `<div class="empty-state" style="padding:24px 0">
