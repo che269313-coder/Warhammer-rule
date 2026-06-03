@@ -16,12 +16,12 @@ const LS_KEY      = 'bc_appstate';
 
 // Official built-in packs — shown in manage view without import, lazy-loaded on activation
 const OFFICIAL_PACKS = [
+  { id: 'cn-sm-bt-rules-pack', path: './rulepacks/CN-SM-BT-rules-pack.json', faction: '星际战士', subfaction: '黑色圣堂', pack_version: '1.0.0-cn.2', game_version: '第10版' },
   { id: 'ac-rules-pack',    path: './rulepacks/AC-rules-pack.json',    faction: 'Adeptus Custodes', subfaction: '',               pack_version: '1.0.0', game_version: '10th Edition' },
   { id: 'tyr-rules-pack',   path: './rulepacks/TYR-rules-pack.json',   faction: 'Tyranids',          subfaction: '',               pack_version: '1.0.0', game_version: '10th Edition' },
   { id: 'tau-rules-pack',   path: './rulepacks/TAU-rules-pack.json',   faction: "T'au Empire",       subfaction: '',               pack_version: '1.0.0', game_version: '10th Edition' },
   { id: 'ik-rules-pack',    path: './rulepacks/IK-rules-pack.json',    faction: 'Imperial Knights',  subfaction: '',               pack_version: '1.0.0', game_version: '10th Edition' },
   { id: 'sm-bt-rules-pack', path: './rulepacks/SM-BT-rules-pack.json', faction: 'Space Marines',     subfaction: 'Black Templars', pack_version: '1.0.0', game_version: '10th Edition' },
-  { id: 'cn-sm-bt-rules-pack', path: './rulepacks/CN-SM-BT-rules-pack.json', faction: '星际战士', subfaction: '黑色圣堂', pack_version: '1.0.0-cn.2', game_version: '第10版' },
   { id: 'sm-um-rules-pack', path: './rulepacks/SM-UM-rules-pack.json', faction: 'Space Marines',     subfaction: 'Ultramarines',   pack_version: '1.1.0', game_version: '10th Edition' },
 ];
 const OFFICIAL_PACK_IDS = new Set(OFFICIAL_PACKS.map(p => p.id));
