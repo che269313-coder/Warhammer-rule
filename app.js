@@ -1996,6 +1996,13 @@ async function init() {
     }
 
     registerSW();
+
+    // Auto-activate first built-in pack on first visit (no pack active yet)
+    if (!state.activePackId && OFFICIAL_PACKS.length > 0) {
+      await activateBuiltinPack(OFFICIAL_PACKS[0].id);
+      return;
+    }
+
     renderApp();
   } catch (err) {
     console.error('[BC] Init failed:', err);
