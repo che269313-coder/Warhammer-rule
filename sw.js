@@ -4,7 +4,7 @@
    ================================================================ */
 'use strict';
 
-const CACHE_NAME   = 'bc-shell-v2.5.0';
+const CACHE_NAME   = 'bc-shell-v2.5.1';
 const SHELL_FILES  = [
   './',
   './index.html',
@@ -34,31 +34,29 @@ self.addEventListener('activate', event => {
   self.clients.claim();
 });
 
-// Fetch: cache-first for shell files, network-first for everything else
+// Fetch: network-first — always try network, fall back to cache when offline
 self.addEventListener('fetch', event => {
-  // Only handle GET requests
   if (event.request.method !== 'GET') return;
 
-  // Only handle same-origin requests (no external CDN resources)
   const url = new URL(event.request.url);
   if (url.origin !== self.location.origin) return;
 
   event.respondWith(
-    caches.match(event.request).then(cached => {
-      if (cached) return cached;
-      return fetch(event.request).then(response => {
-        // Cache newly fetched shell resources
-        if (response.ok && SHELL_FILES.some(f => event.request.url.endsWith(f.replace('./', '')))) {
-          const clone = response.clone();
-          caches.open(CACHE_NAME).then(cache => cache.put(event.request, clone));
-        }
-        return response;
-      });
-    }).catch(() => {
-      // Offline fallback for navigation requests
-      if (event.request.mode === 'navigate') {
-        return caches.match('./index.html');
+    fetch(event.request).then(response => {
+      // Update cache with fresh response
+      if (response.ok && SHELL_FILES.some(f => event.request.url.endsWith(f.replace('./', '')))) {
+        const clone = response.clone();
+        caches.open(CACHE_NAME).then(cache => cache.put(event.request, clone));
       }
+      return response;
+    }).catch(() => {
+      // Offline: try cache, then fallback for navigation
+      return caches.match(event.request).then(cached => {
+        if (cached) return cached;
+        if (event.request.mode === 'navigate') {
+          return caches.match('./index.html');
+        }
+      });
     })
   );
 });
