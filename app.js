@@ -502,7 +502,7 @@ function renderHomeView() {
       if (target.includes(query))   score = Math.max(score, 4);
       if (unitName.includes(query)) score = Math.max(score, 3);
       if (source.includes(query))   score = Math.max(score, 2);
-      if (keywords.includes(query)) score = Math.max(score, 1);
+      // keywords excluded: unit-level tags belong in Roster search, not ability search
       return { ab, score };
     }).filter(item => item.score > 0);
 
@@ -911,15 +911,13 @@ function renderSearchView() {
     const unit = String(ab._unit || '').toLowerCase();
     const effect = String(ab.effect || '').toLowerCase();
     const target = String(ab.target || '').toLowerCase();
-    const keywords = String(ab._keywords || '').toLowerCase();
     return name.includes(query)
       || summary.includes(query)
       || timing.includes(query)
       || source.includes(query)
       || unit.includes(query)
       || effect.includes(query)
-      || target.includes(query)
-      || keywords.includes(query);
+      || target.includes(query);
   }) : uniqueAbs;
 
   // Sort: used first, then by category priority
