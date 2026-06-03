@@ -492,13 +492,15 @@ function renderHomeView() {
       const unit = String(ab._unit || '').toLowerCase();
       const effect = String(ab.effect || '').toLowerCase();
       const target = String(ab.target || '').toLowerCase();
+      const keywords = String(ab._keywords || '').toLowerCase();
       return name.includes(query)
         || summary.includes(query)
         || timing.includes(query)
         || source.includes(query)
         || unit.includes(query)
         || effect.includes(query)
-        || target.includes(query);
+        || target.includes(query)
+        || keywords.includes(query);
     });
     const catOrder = { stratagem: 0, detachment: 1, enhancement: 2, unit: 3 };
     filtered.sort((a, b) => {
@@ -811,6 +813,7 @@ function collectAllAbilities(pack) {
       out.push({
         ...ab,
         _unit: unit.name,
+        _keywords: (unit.keywords || []).join(' '),
         _category: 'unit',
         _detachment: factionLabel,
         _turnScope: ab.turn_scope || inferTurnScope(ab),
@@ -901,13 +904,15 @@ function renderSearchView() {
     const unit = String(ab._unit || '').toLowerCase();
     const effect = String(ab.effect || '').toLowerCase();
     const target = String(ab.target || '').toLowerCase();
+    const keywords = String(ab._keywords || '').toLowerCase();
     return name.includes(query)
       || summary.includes(query)
       || timing.includes(query)
       || source.includes(query)
       || unit.includes(query)
       || effect.includes(query)
-      || target.includes(query);
+      || target.includes(query)
+      || keywords.includes(query);
   }) : uniqueAbs;
 
   // Sort: used first, then by category priority
