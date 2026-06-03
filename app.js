@@ -1217,8 +1217,21 @@ function handleCompositionEnd(e) {
   const target = e.target;
   if (target && (target.id === 'home-search' || target.id === 'search-input')) {
     state.searchQuery = target.value || '';
+    const wasFocused = document.activeElement === target;
     clearTimeout(_searchTimer);
-    _searchTimer = setTimeout(() => renderApp(), 250);
+    _searchTimer = setTimeout(() => {
+      renderApp();
+      if (wasFocused) {
+        requestAnimationFrame(() => {
+          const input = document.getElementById('home-search') || document.getElementById('search-input');
+          if (input && document.activeElement !== input) {
+            input.focus();
+            const len = input.value.length;
+            input.setSelectionRange(len, len);
+          }
+        });
+      }
+    }, 250);
   }
 }
 
@@ -1234,8 +1247,22 @@ function handleAppInput(e) {
   if (target.id === 'search-input' || target.id === 'home-search') {
     if (_isComposing) return; // skip during IME composition
     state.searchQuery = target.value || '';
+    const wasFocused = document.activeElement === target;
     clearTimeout(_searchTimer);
-    _searchTimer = setTimeout(() => renderApp(), 250);
+    _searchTimer = setTimeout(() => {
+      renderApp();
+      // Restore focus and cursor after DOM rebuild
+      if (wasFocused) {
+        requestAnimationFrame(() => {
+          const input = document.getElementById('home-search') || document.getElementById('search-input');
+          if (input && document.activeElement !== input) {
+            input.focus();
+            const len = input.value.length;
+            input.setSelectionRange(len, len);
+          }
+        });
+      }
+    }, 250);
   }
 }
 
